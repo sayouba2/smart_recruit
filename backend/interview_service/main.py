@@ -18,25 +18,27 @@ def read_root():
     return {"message": "Interview Service is running"}
 
 @app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
+async def websocket_endpoint(websocket: WebSocket, job: str = "Développeur"):
     await websocket.accept()
     session_id = str(uuid.uuid4())
+    turn_index = 0
+    
+    # Send the first AI question immediately
+    result = await process_audio_message(None, session_id, turn_index, job)
+    await websocket.send_json(result)
+    turn_index += 1
+    
     try:
         while True:
-            # Expecting raw audio bytes from the client
+            # Wait for user's audio response
             audio_bytes = await websocket.receive_bytes()
             
-            # Process the audio (Whisper -> GPT -> ElevenLabs)
-            result = await process_audio_message(audio_bytes, session_id)
+            # Process their audio and fetch the NEXT question
+            result = await process_audio_message(audio_bytes, session_id, turn_index, job)
+            await websocket.send_json(result)
             
-            # Send back the AI response info
-            await websocket.send_json({
-                "ai_text": result["ai_text"],
-                "ai_audio_path": result["ai_audio_path"],
-                "ai_audio_b64": result["ai_audio_b64"]
-            })
-            
-            # Note: The client would then ideally pull the audio file or receive it directly over WS.
-            
+            if not result.get("is_finished", False):
+                turn_index += 1
+                
     except WebSocketDisconnect:
         print(f"Client {session_id} disconnected")

@@ -1,0 +1,1 @@
+Merci pour votre réponse. Je vais maintenant vous proposer une mise en situation. Imaginez que vous êtes en train de développer une nouvelle fonctionnalité pour une application web, et vous découvrez qu'une partie du code écrit par un collègue présente des erreurs qui bloquent votre progression. Comment réagiriez-vous dans cette situation ?

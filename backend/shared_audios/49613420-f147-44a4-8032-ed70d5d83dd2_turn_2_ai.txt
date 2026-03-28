@@ -1,0 +1,1 @@
+Merci pour ces précisions. En ce qui concerne les compétences techniques, pourriez-vous nous expliquer comment vous avez intégré React avec FastAPI dans le cadre de ce projet ? Quels ont été les principaux défis techniques que vous avez rencontrés et comment les avez-vous surmontés ?
