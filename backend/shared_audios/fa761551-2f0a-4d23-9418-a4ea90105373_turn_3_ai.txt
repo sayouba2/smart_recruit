@@ -1,0 +1,1 @@
+Concernant vos compétences techniques, pourriez-vous nous expliquer comment vous avez utilisé Python dans vos projets, notamment avec des frameworks comme Django ou Flask ? Pourriez-vous donner un exemple concret d'une fonctionnalité que vous avez développée ?

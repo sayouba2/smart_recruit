@@ -1,19 +1,30 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 
-class JobBase(BaseModel):
+class JobCreate(BaseModel):
     title: str
     description: str
-    experience_required: Optional[str] = None
+    domain: str
+    priority_criteria: str
 
-class JobCreate(JobBase):
-    pass
-
-class JobResponse(JobBase):
+class JobResponse(BaseModel):
     id: int
-    skills_required: Optional[str] = None
+    title: str
+    description: str
+    domain: str
+    priority_criteria: Optional[str] = None # Will not be returned to candidates
+    created_by: int
     created_at: datetime
 
     class Config:
-        from_attributes = True
+        orm_mode = True
+
+class JobListResponse(BaseModel):
+    id: int
+    title: str
+    domain: str
+    created_at: datetime
+    # We omit description for the public list if we want, or keep it short
+    class Config:
+        orm_mode = True

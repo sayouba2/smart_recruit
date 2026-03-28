@@ -1,0 +1,3 @@
+C:\dev\projects\smart_recruit_v2\backend\cv_service\models.py
+C:\dev\projects\smart_recruit_v2\backend\job_service\models.py
+C:\dev\projects\smart_recruit_v2\backend\shared\models.py

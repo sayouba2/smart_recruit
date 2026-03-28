@@ -2,20 +2,20 @@ from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
 
-class CandidateBase(BaseModel):
-    name: Optional[str] = None
-    email: Optional[str] = None
-    skills: Optional[str] = None
-    experience: Optional[float] = None
-    education: Optional[str] = None
-    cv_file_path: Optional[str] = None
-
-class CandidateCreate(CandidateBase):
-    pass
-
-class CandidateResponse(CandidateBase):
+class ApplicationResponse(BaseModel):
     id: int
+    job_offer_id: int
+    status: str
+    rejection_reason: Optional[str] = None
+    interview_link: Optional[str] = None
     created_at: datetime
-
+    
+    # Hidden info in real life, but exposed to RH
+    cv_score: Optional[float] = None
+    
     class Config:
-        from_attributes = True
+        orm_mode = True
+
+class ApplicationDecision(BaseModel):
+    decision: str  # "accepted" or "rejected"
+    comment: Optional[str] = ""

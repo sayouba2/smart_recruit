@@ -1,40 +1,59 @@
-import glob
+import sys
 import os
-import json
-from openai import OpenAI
-from fastapi import FastAPI
+import glob
+from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session, joinedload
+from openai import OpenAI
 from pydantic import BaseModel
-from typing import List
-from matching import match_score
+
+# Shared DB Config
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "shared")))
+from database import engine, Base, get_db
+from models import Application, JobOffer, Interview, User, ApplicationStatus
+from deps import get_current_active_candidate
+
+import schemas
+
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="AI Analysis Service")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY", "dummy_key"))
 AUDIO_STORAGE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "shared_audios"))
 
-class ScoringRequest(BaseModel):
-    cv_score: float
-    interview_score: float
-    experience_score: float
-
-class MatchRequest(BaseModel):
-    job_skills: List[str]
-    candidate_skills: List[str]
-
-class AnalyzeSessionRequest(BaseModel):
-    session_id: str
+def check_priority_criteria(transcript: str, criteria: str) -> dict:
+    if not criteria or client.api_key == "dummy_key":
+        return {"passed": True, "comment": ""}
+        
+    prompt = f"""
+    En te basant UNIQUEMENT sur cette transcription d'entretien, le candidat respecte-t-il obligatoirement ce critère prioritaire : '{criteria}' ?
+    Réponds en JSON formatté exactement comme ceci:
+    {{"passed": true/false, "comment": "Brève explication"}}
+    
+    Transcription:
+    {transcript}
+    """
+    try:
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"}
+        )
+        import json
+        return json.loads(response.choices[0].message.content)
+    except Exception as e:
+        print(e)
+        return {"passed": True, "comment": "AI analysis error fallback."}
 
 @app.post("/analyze_session")
-def analyze_session(req: AnalyzeSessionRequest):
+def analyze_session(req: schemas.AnalysisRequest, current_candidate: User = Depends(get_current_active_candidate), db: Session = Depends(get_db)):
+    app_record = db.query(Application).options(joinedload(Application.job_offer), joinedload(Application.interview)).filter(Application.id == req.application_id, Application.candidate_id == current_candidate.id).first()
+    
+    if not app_record:
+        raise HTTPException(status_code=404, detail="Application not found")
+
     session_id = req.session_id
     files = sorted(glob.glob(f"{AUDIO_STORAGE_DIR}/{session_id}_turn_*_candidate.webm"))
     
@@ -56,6 +75,8 @@ def analyze_session(req: AnalyzeSessionRequest):
         if client.api_key != "dummy_key":
             try:
                 with open(file_path, "rb") as f:
+                    # In a real heavy app we might want BackgroundTasks for this, 
+                    # but for this MVP we block and transcribe to send the final score right away
                     transcription = client.audio.transcriptions.create(model="whisper-1", file=f, response_format="text")
                     candidate_ans = transcription
             except Exception as e:
@@ -65,28 +86,33 @@ def analyze_session(req: AnalyzeSessionRequest):
             
         full_transcript += f"IA: {q_text}\nCandidat: {candidate_ans}\n\n"
         
-    evaluation = {"communication": 85, "problem_solving": 80, "professionalism": 90, "sentiment": "Positif"}
-    if client.api_key != "dummy_key" and files:
-        prompt = f"""
-        Evalue l'entretien suivant sur 100 pour la communication, la résolution de problème et le professionnalisme.
-        Donne aussi le sentiment principal (ex: Confident, Stressé, etc.).
-        Tu DOIS renvoyer UNIQUEMENT un objet JSON pur: {{"communication": 0, "problem_solving": 0, "professionalism": 0, "sentiment": "..."}}. Ne renvoie aucun autre texte.
-        Entretien:
-        {full_transcript}
-        """
-        try:
-            res = client.chat.completions.create(model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}], temperature=0.0)
-            content = res.choices[0].message.content.strip()
-            if content.startswith("```json"): content = content[7:-3].strip()
-            elif content.startswith("```"): content = content[3:-3].strip()
-            evaluation = json.loads(content)
-        except Exception as e:
-            print(f"Eval error: {e}")
-            
-    final_score = (evaluation.get("communication", 0) + evaluation.get("problem_solving", 0) + evaluation.get("professionalism", 0)) / 3
+    final_score = 85.0 # Mock default
+
+    # Priority Check
+    priority_crit = app_record.job_offer.priority_criteria if app_record.job_offer else ""
+    priority_result = {"passed": True, "comment": ""}
     
+    if priority_crit:
+        priority_result = check_priority_criteria(full_transcript, priority_crit)
+        
+    ai_comment = "Le candidat semble avoir de bonnes compétences globales."
+    if not priority_result.get("passed", True):
+        app_record.status = ApplicationStatus.rejected
+        app_record.rejection_reason = "Éliminé par critère prioritaire caché : " + priority_result.get("comment", "Non respecté.")
+        final_score = 0.0
+    else:
+        ai_comment = "Critère prioritaire respecté. " + priority_result.get("comment", "")
+
+    if app_record.interview:
+        app_record.interview.interview_score = final_score
+        app_record.interview.ai_comments = ai_comment
+        app_record.interview.passed = True
+        
+    db.commit()
+
     return {
+        "status": app_record.status.value,
+        "final_interview_score": final_score,
         "transcript": full_transcript,
-        "evaluation": evaluation,
-        "final_interview_score": round(final_score, 2)
+        "priority_check": priority_result
     }

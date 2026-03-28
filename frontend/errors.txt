@@ -1,0 +1,8 @@
+src/components/InterviewRoom.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/pages/CandidateDashboard.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/pages/CandidateDashboard.tsx(1,50): error TS6133: 'useRef' is declared but its value is never read.
+src/pages/CandidateDashboard.tsx(91,45): error TS2304: Cannot find name 'int'.
+src/pages/Landing.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/pages/Landing.tsx(3,10): error TS6133: 'Briefcase' is declared but its value is never read.
+src/pages/Landing.tsx(3,38): error TS6133: 'MapPin' is declared but its value is never read.
+src/pages/RHDashboard.tsx(47,41): error TS2304: Cannot find name 'int'.
