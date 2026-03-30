@@ -1,10 +1,12 @@
 import { useEffect, useState, useContext } from 'react';
 import { AuthContext } from '../App';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import { X, MessageSquare, CheckCircle, XCircle, Clock } from 'lucide-react';
 import InterviewRoom from '../components/InterviewRoom';
 
 function ApplicationList() {
   const [apps, setApps] = useState<any[]>([]);
+  const [messageModal, setMessageModal] = useState<{title: string, msg: string, status: string} | null>(null);
   const { auth } = useContext(AuthContext);
   const navigate = useNavigate();
 
@@ -66,13 +68,20 @@ function ApplicationList() {
                     </span>
                   </td>
                   <td>
-                    {a.status === 'rejected' && <span style={{ fontSize: '0.85rem', color: '#ef4444' }}>{a.rejection_reason || "Non retenu"}</span>}
-                    {a.status === 'pending' && a.interview_link && (
+                    {a.status === 'pending' && a.interview_link && !a.interview_passed && (
                       <button className="btn btn-secondary" style={{ padding: '0.4rem 1rem', fontSize: '0.85rem' }} onClick={() => navigate(`/candidate/interview/${a.id}`)}>
                         Passer l'entretien Oral
                       </button>
                     )}
-                    {a.status === 'accepted' && <span style={{ fontSize: '0.85rem', color: '#22c55e' }}>Contact RH en cours</span>}
+                    {a.status === 'pending' && !a.interview_link && <span style={{ fontSize: '0.85rem', color: '#64748b' }}>Analyse CV en cours</span>}
+                    {a.status === 'pending' && a.interview_link && a.interview_passed && <span style={{ fontSize: '0.85rem', color: '#16a34a', display: 'flex', alignItems: 'center', gap: '4px' }}><CheckCircle size={14}/> Entretien Terminé</span>}
+                    
+                    {['accepted', 'rejected', 'saved'].includes(a.status) && a.rejection_reason && (
+                      <button className="btn" style={{ padding: '0.4rem 1rem', fontSize: '0.85rem', background: a.status === 'accepted' ? '#22c55e' : (a.status === 'rejected' ? '#ef4444' : '#3b82f6'), display: 'flex', alignItems: 'center', gap: '0.5rem' }} 
+                              onClick={() => setMessageModal({title: a.job_title, msg: a.rejection_reason, status: a.status})}>
+                        <MessageSquare size={14} /> Lire le retour RH
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -80,6 +89,26 @@ function ApplicationList() {
           </table>
         )}
       </div>
+
+      {messageModal && (
+        <div style={{position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100}}>
+            <div className="card animate-fade" style={{width: '90%', maxWidth: '500px', maxHeight: '85vh', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', overflow: 'hidden', padding: 0}}>
+              <div className="flex-between" style={{padding: '1.5rem', borderBottom: '1px solid #e2e8f0', background: '#f8fafc', flexShrink: 0}}>
+                  <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem'}}>
+                      {messageModal.status === 'accepted' ? <CheckCircle color="#22c55e" /> : (messageModal.status === 'rejected' ? <XCircle color="#ef4444" /> : <Clock color="#3b82f6" />)}
+                      <h3 style={{margin: 0}}>Message de l'équipe RH</h3>
+                  </div>
+                  <button onClick={() => setMessageModal(null)} className="btn btn-secondary" style={{padding: '0.3rem'}}><X size={18} /></button>
+              </div>
+              <div style={{padding: '1.5rem', overflowY: 'auto', flex: 1, minHeight: 0}}>
+                  <h4 style={{marginTop: 0, color: '#64748b'}}>Poste : {messageModal.title}</h4>
+                  <div style={{background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', whiteSpace: 'pre-wrap', padding: '1rem', marginTop: '1rem', lineHeight: '1.5'}}>
+                      {messageModal.msg}
+                  </div>
+              </div>
+            </div>
+        </div>
+      )}
     </div>
   );
 }

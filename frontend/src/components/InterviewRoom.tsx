@@ -69,7 +69,7 @@ export default function InterviewRoom() {
     if (!micReady) return;
 
     try {
-      ws.current = new WebSocket(`ws://localhost:8003/ws/${application_id}?token=${auth.token}`);
+      ws.current = new WebSocket(`ws://localhost:8004/ws/${application_id}?token=${auth.token}`);
       
       ws.current.onopen = () => {
         setIsRecording(true);
@@ -85,15 +85,15 @@ export default function InterviewRoom() {
         const playAudio = async () => {
             if (data.ai_audio_b64) {
                  const audio = new Audio("data:audio/mp3;base64," + data.ai_audio_b64);
-                 audio.onended = () => { if (!data.is_finished) startRecordingVAD(); };
+                 audio.onended = () => { if (!data.is_finished) startRecordingVAD(); else endInterview(); };
                  await audio.play().catch((e) => {
                      console.error("Erreur de lecture:", e);
-                     if (!data.is_finished) startRecordingVAD();
+                     if (!data.is_finished) startRecordingVAD(); else endInterview();
                  });
             } else {
                  const utterance = new SpeechSynthesisUtterance(data.ai_text);
                  utterance.lang = "fr-FR";
-                 utterance.onend = () => { if (!data.is_finished) startRecordingVAD(); };
+                 utterance.onend = () => { if (!data.is_finished) startRecordingVAD(); else endInterview(); };
                  window.speechSynthesis.speak(utterance);
             }
         };
@@ -101,7 +101,8 @@ export default function InterviewRoom() {
       };
       
       ws.current.onclose = () => {
-        setIsRecording(false);
+        // Only set recording to false if it wasn't a standard finish (the audio.onended will handle endInterview)
+        if (!isInterviewActiveRef.current) setIsRecording(false);
       };
     } catch(e) { console.error(e); }
   };
@@ -204,7 +205,7 @@ export default function InterviewRoom() {
         setIsGeneratingAnalysis(true);
         try {
             setMessages(prev => [...prev, { sender: 'System', text: 'Génération du rapport RH final en cours...' }]);
-            await fetch('http://localhost:8004/analyze_session', {
+            await fetch('http://localhost:8003/analyze_session', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
                 body: JSON.stringify({ session_id: currentSessionId.current, application_id: application_id })
@@ -280,28 +281,6 @@ export default function InterviewRoom() {
             )}
          </div>
 
-         <div className="card">
-            <h3>Historique de la conversation</h3>
-            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: '1rem', borderRadius: '8px', marginTop: '1rem', height: '350px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                {messages.length === 0 ? <p style={{color: '#94a3b8', fontStyle: 'italic', textAlign: 'center', marginTop: 'auto', marginBottom: 'auto'}}>L'entretien n'a pas commencé.</p> : null}
-                {messages.map((m, i) => (
-                  <div key={i} style={{
-                      alignSelf: m.sender === 'System' ? 'center' : (m.sender === 'Vous' ? 'flex-end' : 'flex-start'),
-                      background: m.sender === 'System' ? 'transparent' : (m.sender === 'Vous' ? '#ea580c' : '#ffffff'),
-                      color: m.sender === 'System' ? '#cbd5e1' : (m.sender === 'Vous' ? '#ffffff' : '#334155'),
-                      padding: m.sender === 'System' ? '0.2rem' : '0.8rem 1.2rem',
-                      borderRadius: '12px',
-                      border: m.sender === 'IA Recruteur' ? '1px solid #cbd5e1' : 'none',
-                      maxWidth: '85%',
-                      boxShadow: m.sender !== 'System' ? '0 2px 5px rgba(0,0,0,0.05)' : 'none',
-                      fontSize: m.sender === 'System' ? '0.8rem' : '0.95rem'
-                  }}>
-                    {m.sender !== 'System' && <strong style={{display: 'block', fontSize: '0.75rem', marginBottom: '0.2rem', opacity: 0.8}}>{m.sender}</strong>}
-                    {m.text}
-                  </div>
-                ))}
-            </div>
-         </div>
       </div>
     </div>
   );

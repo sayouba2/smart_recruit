@@ -104,7 +104,7 @@ def submit_application(
 
 @app.get("/my_applications")
 def get_my_applications(current_candidate: User = Depends(get_current_active_candidate), db: Session = Depends(get_db)):
-    apps = db.query(Application).options(joinedload(Application.job_offer)).filter(Application.candidate_id == current_candidate.id).all()
+    apps = db.query(Application).options(joinedload(Application.job_offer), joinedload(Application.interview)).filter(Application.candidate_id == current_candidate.id).all()
     
     result = []
     for a in apps:
@@ -114,6 +114,7 @@ def get_my_applications(current_candidate: User = Depends(get_current_active_can
             "status": a.status,
             "rejection_reason": a.rejection_reason,
             "interview_link": a.interview_link,
+            "interview_passed": a.interview.passed if a.interview else False,
             "created_at": a.created_at
         })
     return result
@@ -131,7 +132,19 @@ def get_rh_applications(job_offer_id: int = None, current_rh: User = Depends(get
         
     apps = query.all()
     result = []
+    
     for a in apps:
+        import json
+        ai_comment_text = a.interview.ai_comments if a.interview else None
+        ai_comment_obj = {}
+        if ai_comment_text and ai_comment_text.startswith("{"):
+            try:
+                ai_comment_obj = json.loads(ai_comment_text)
+            except:
+                ai_comment_obj = {"comment": ai_comment_text}
+        else:
+            ai_comment_obj = {"comment": ai_comment_text}
+
         result.append({
             "id": a.id,
             "candidate_name": a.candidate.name if a.candidate else "Unknown",
@@ -141,6 +154,9 @@ def get_rh_applications(job_offer_id: int = None, current_rh: User = Depends(get
             "cv_score": a.cv_score,
             "parsed_skills": json.loads(a.parsed_skills) if a.parsed_skills else [],
             "interview_score": a.interview.interview_score if a.interview else None,
+            "ai_comments": ai_comment_obj.get("comment"),
+            "transcript": ai_comment_obj.get("transcript"),
+            "hr_report": ai_comment_obj.get("hr_report"),
             "rejection_reason": a.rejection_reason,
             "created_at": a.created_at
         })
@@ -154,8 +170,12 @@ def make_decision(app_id: int, decision_data: schemas.ApplicationDecision, curre
         
     if decision_data.decision == "accepted":
         app.status = ApplicationStatus.accepted
+        app.rejection_reason = decision_data.comment # We use rejection_reason as generic message for candidate
     elif decision_data.decision == "rejected":
         app.status = ApplicationStatus.rejected
+        app.rejection_reason = decision_data.comment
+    elif decision_data.decision == "saved":
+        app.status = ApplicationStatus.saved
         app.rejection_reason = decision_data.comment
         
     db.commit()

@@ -86,8 +86,14 @@ def analyze_session(req: schemas.AnalysisRequest, current_candidate: User = Depe
             
         full_transcript += f"IA: {q_text}\nCandidat: {candidate_ans}\n\n"
         
-    final_score = 85.0 # Mock default
-
+    # Get AI metrics
+    import scoring
+    evaluation = scoring.evaluate_interview(full_transcript, app_record.job_offer.description if app_record.job_offer else "", app_record.parsed_skills or "")
+    interview_score = evaluation.get("score_global", 0)
+    
+    cv_match = app_record.cv_score if app_record.cv_score else 50.0
+    # In absence of full experience parsed model, we rely mainly on cv_match and interview_score
+    final_score = scoring.compute_final_score(cv_match, interview_score, 70.0) 
     # Priority Check
     priority_crit = app_record.job_offer.priority_criteria if app_record.job_offer else ""
     priority_result = {"passed": True, "comment": ""}
@@ -101,11 +107,18 @@ def analyze_session(req: schemas.AnalysisRequest, current_candidate: User = Depe
         app_record.rejection_reason = "Éliminé par critère prioritaire caché : " + priority_result.get("comment", "Non respecté.")
         final_score = 0.0
     else:
-        ai_comment = "Critère prioritaire respecté. " + priority_result.get("comment", "")
+        ai_comment = evaluation.get("synthese", "Évaluation générée.") + "\n\n(Critère prioritaire: " + priority_result.get("comment", "OK") + ")"
+
+    import json
+    saved_comments = json.dumps({
+        "comment": ai_comment,
+        "transcript": full_transcript,
+        "hr_report": evaluation
+    })
 
     if app_record.interview:
         app_record.interview.interview_score = final_score
-        app_record.interview.ai_comments = ai_comment
+        app_record.interview.ai_comments = saved_comments
         app_record.interview.passed = True
         
     db.commit()

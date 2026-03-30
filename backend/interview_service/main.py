@@ -72,16 +72,17 @@ async def websocket_endpoint(websocket: WebSocket, application_id: int, token: s
         session_id = str(uuid.uuid4())
         turn_index = 0
         job_title = app_record.job_offer.title if app_record.job_offer else "Développeur"
+        priority_criteria = app_record.job_offer.priority_criteria if app_record.job_offer else ""
         
         # Send first question
-        result = await process_audio_message(None, session_id, turn_index, job_title)
+        result = await process_audio_message(None, session_id, turn_index, job_title, priority_criteria)
         await websocket.send_json(result)
         turn_index += 1
         
         try:
             while True:
                 audio_bytes = await websocket.receive_bytes()
-                result = await process_audio_message(audio_bytes, session_id, turn_index, job_title)
+                result = await process_audio_message(audio_bytes, session_id, turn_index, job_title, priority_criteria)
                 await websocket.send_json(result)
                 
                 if result.get("is_finished", False):

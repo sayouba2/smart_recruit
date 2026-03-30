@@ -11,6 +11,8 @@ os.makedirs(AUDIO_STORAGE_DIR, exist_ok=True)
 
 # In-memory store for conversation histories (session_id -> list of message dicts)
 ACTIVE_SESSIONS = {}
+import time
+SESSION_START_TIMES = {}
 
 SYSTEM_PROMPT = """
 Tu es un recruteur professionnel expérimenté chargé de conduire un entretien structuré pour un poste spécifique.
@@ -141,7 +143,8 @@ Par exemple :
 
 RÈGLE ABSOLUE :
 
-Tu dois toujours respecter la consigne spécifique qui te sera donnée à chaque tour par le système.
+- Tu dois toujours respecter la consigne spécifique qui te sera donnée à chaque tour par le système.
+- IL EST STRICTEMENT INTERDIT de demander au candidat s'il a des questions pour toi, sur le poste ou sur l'entreprise. Tu es le seul à poser les questions jusqu'à la conclusion formelle.
 """
 
 async def generate_audio_elevenlabs(text: str) -> bytes:
@@ -168,17 +171,20 @@ async def generate_audio_elevenlabs(text: str) -> bytes:
             print(f"ElevenLabs error: {response.text}")
             return b""
 
-async def process_audio_message(audio_bytes: bytes | None, session_id: str, turn_index: int, job_title: str = "Développeur") -> dict:
+async def process_audio_message(audio_bytes: bytes | None, session_id: str, turn_index: int, job_title: str = "Développeur", priority_criteria: str = "") -> dict:
     # 1. Initialize logic
     if session_id not in ACTIVE_SESSIONS:
+        priority_instruction = f"- Critère RH prioritaire (absolument vérifier via une question dédiée): {priority_criteria}" if priority_criteria else ""
+        
         ctx_prompt = SYSTEM_PROMPT.replace(
             "- Le poste pour lequel le candidat postule",
-            f"- Le poste pour lequel le candidat postule : {job_title}"
+            f"- Le poste pour lequel le candidat postule : {job_title}\n{priority_instruction}"
         )
         ACTIVE_SESSIONS[session_id] = [
             {"role": "system", "content": ctx_prompt.strip()},
-            {"role": "user", "content": f"(Système: Le candidat est connecté. Démarre l'entretien pour le poste de {job_title} avec une salutation courtoise et la première question d'introduction. Reste assez concis.)"}
+            {"role": "user", "content": f"(Système: Le candidat est connecté. Démarre l'entretien pour le poste de {job_title} avec une salutation courtoise et la première question d'introduction. N'oublie pas de vérifier le critère prioritaire avant la fin de l'entretien. Reste assez concis.)"}
         ]
+        SESSION_START_TIMES[session_id] = time.time()
         
     candidate_transcript = ""
     
@@ -216,6 +222,17 @@ async def process_audio_message(audio_bytes: bytes | None, session_id: str, turn
             })
             candidate_transcript = "[Mock Answer]"
 
+    elapsed_time = 0
+    if session_id in SESSION_START_TIMES:
+        elapsed_time = time.time() - SESSION_START_TIMES[session_id]
+
+    # Entre 10 et 15 minutes, on pousse gentiment l'IA vers la conclusion
+    if 600 <= elapsed_time < 900:
+        ACTIVE_SESSIONS[session_id].append({
+            "role": "system",
+            "content": "(Système de Chronométrage : L'entretien dépasse les 10 minutes. C'est l'heure de poser ta toute dernière question ou de formuler une conclusion très brève. Rappel stricte : ne demande surtout pas au candidat s'il a des questions pour toi.)"
+        })
+
     # 3. Generate IA Question via GPT-4
     next_q_text = "Je suis désolé, je ne peux pas générer de question sans clé API OpenAI."
     if client.api_key != "dummy_key":
@@ -232,12 +249,14 @@ async def process_audio_message(audio_bytes: bytes | None, session_id: str, turn
             print(f"GPT Error: {e}")
             next_q_text = "Houston, nous avons un problème de connexion avec l'IA."
 
-    # Max 8 tours = 8 questions pour simuler l'entretien complet avant de terminer
-    is_finished = turn_index >= 8
+    # Max 15 minutes (900s) ou 20 tours pour couper net
+    is_finished = elapsed_time >= 900 or turn_index >= 20
     if is_finished:
-        next_q_text = "Merci pour toutes vos réponses, cela me donne un excellent aperçu de votre profil. L'entretien est à présent terminé. Je vous invite à cliquer sur 'End Call'."
+        next_q_text = "Merci pour vos réponses, cela me donne un excellent aperçu de votre profil. L'entretien est à présent terminé. Je vous souhaite une excellente journée."
         if session_id in ACTIVE_SESSIONS:
             del ACTIVE_SESSIONS[session_id]
+        if session_id in SESSION_START_TIMES:
+            del SESSION_START_TIMES[session_id]
 
     # Save the AI question for later analysis mapping
     q_path = f"{AUDIO_STORAGE_DIR}/{session_id}_turn_{turn_index}_ai.txt"

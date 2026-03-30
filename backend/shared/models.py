@@ -12,6 +12,7 @@ class ApplicationStatus(str, enum.Enum):
     pending = "pending"
     accepted = "accepted"
     rejected = "rejected"
+    saved = "saved"
 
 class User(Base):
     __tablename__ = "users"

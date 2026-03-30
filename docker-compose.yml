@@ -1,0 +1,153 @@
+services:
+  mysql_db:
+    image: mysql:8.0
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: smart_recruit
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "-u", "root", "-proot", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  auth_service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: auth_service
+    ports:
+      - "8005:8000"
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=mysql+pymysql://root:root@mysql_db/smart_recruit
+    volumes:
+      - ./backend/auth_service:/app/auth_service
+      - ./backend/shared:/app/shared
+    depends_on:
+      mysql_db:
+        condition: service_healthy
+
+  job_service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: job_service
+    ports:
+      - "8001:8000"
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=mysql+pymysql://root:root@mysql_db/smart_recruit
+    volumes:
+      - ./backend/job_service:/app/job_service
+      - ./backend/shared:/app/shared
+    depends_on:
+      mysql_db:
+        condition: service_healthy
+
+  cv_service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: cv_service
+    ports:
+      - "8002:8000"
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=mysql+pymysql://root:root@mysql_db/smart_recruit
+    volumes:
+      - ./backend/cv_service:/app/cv_service
+      - ./backend/shared:/app/shared
+    depends_on:
+      mysql_db:
+        condition: service_healthy
+
+  ai_analysis:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: ai_analysis
+    ports:
+      - "8003:8000"
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=mysql+pymysql://root:root@mysql_db/smart_recruit
+    volumes:
+      - ./backend/ai_analysis:/app/ai_analysis
+      - ./backend/shared:/app/shared
+      - shared_audios:/app/shared_audios
+    depends_on:
+      mysql_db:
+        condition: service_healthy
+
+  interview_service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: interview_service
+    ports:
+      - "8004:8000"
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=mysql+pymysql://root:root@mysql_db/smart_recruit
+    volumes:
+      - ./backend/interview_service:/app/interview_service
+      - ./backend/shared:/app/shared
+      - shared_audios:/app/shared_audios
+    depends_on:
+      mysql_db:
+        condition: service_healthy
+
+  api_gateway:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: api_gateway
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=mysql+pymysql://root:root@mysql_db/smart_recruit
+    volumes:
+      - ./backend/api_gateway:/app/api_gateway
+      - ./backend/shared:/app/shared
+    depends_on:
+      mysql_db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules # Prevents local node_modules from conflicting
+    environment:
+      - CHOKIDAR_USEPOLLING=true # Helps Vite hot-reload on some OS inside Docker
+    depends_on:
+      - auth_service
+      - job_service
+      - cv_service
+      - interview_service
+
+volumes:
+  mysql_data:
+  shared_audios:
