@@ -1,4 +1,7 @@
+version: "3.9"
+
 services:
+
   mysql_db:
     image: mysql:8.0
     command: --default-authentication-plugin=mysql_native_password
@@ -21,6 +24,7 @@ services:
       dockerfile: Dockerfile
       args:
         SERVICE_NAME: auth_service
+    image: sayouba/smart-recruit-auth:1.0
     ports:
       - "8005:8000"
     env_file:
@@ -40,6 +44,7 @@ services:
       dockerfile: Dockerfile
       args:
         SERVICE_NAME: job_service
+    image: sayouba/smart-recruit-job:1.0
     ports:
       - "8001:8000"
     env_file:
@@ -59,6 +64,7 @@ services:
       dockerfile: Dockerfile
       args:
         SERVICE_NAME: cv_service
+    image: sayouba/smart-recruit-cv:1.0
     ports:
       - "8002:8000"
     env_file:
@@ -78,6 +84,7 @@ services:
       dockerfile: Dockerfile
       args:
         SERVICE_NAME: ai_analysis
+    image: sayouba/smart-recruit-ai:1.0
     ports:
       - "8003:8000"
     env_file:
@@ -98,6 +105,7 @@ services:
       dockerfile: Dockerfile
       args:
         SERVICE_NAME: interview_service
+    image: sayouba/smart-recruit-interview:1.0
     ports:
       - "8004:8000"
     env_file:
@@ -118,6 +126,7 @@ services:
       dockerfile: Dockerfile
       args:
         SERVICE_NAME: api_gateway
+    image: sayouba/smart-recruit-api:1.0
     ports:
       - "8000:8000"
     env_file:
@@ -135,13 +144,14 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    image: sayouba/smart-recruit-frontend:1.0
     ports:
       - "5173:5173"
     volumes:
       - ./frontend:/app
-      - /app/node_modules # Prevents local node_modules from conflicting
+      - /app/node_modules
     environment:
-      - CHOKIDAR_USEPOLLING=true # Helps Vite hot-reload on some OS inside Docker
+      - CHOKIDAR_USEPOLLING=true
     depends_on:
       - auth_service
       - job_service
