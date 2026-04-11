@@ -7,7 +7,6 @@ import CandidateDashboard from './pages/CandidateDashboard';
 import RHDashboard from './pages/RHDashboard';
 import { LogOut, User, LayoutDashboard, Briefcase } from 'lucide-react';
 
-// Simple Auth Context setup
 export const AuthContext = React.createContext<any>(null);
 
 function Layout() {
@@ -15,48 +14,76 @@ function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // If public route, no sidebar
   if (['/', '/login', '/register'].includes(location.pathname)) {
-    return <Routes>
-        <Route path="/" element={<Landing />} />
-        <Route path="/login" element={<Login />} />
+    return (
+      <Routes>
+        <Route path="/"         element={<Landing />} />
+        <Route path="/login"    element={<Login />} />
         <Route path="/register" element={<Register />} />
-    </Routes>;
+      </Routes>
+    );
   }
 
   return (
     <div className="app-container">
       <aside className="sidebar">
-        <div className="logo" onClick={() => navigate('/')} style={{cursor: 'pointer'}}>
+        {/* Logo */}
+        <div className="logo" onClick={() => navigate('/')}>
           Smart Recruit
         </div>
-        
+
+        {/* Nav */}
         <div className="nav-item active">
-          <LayoutDashboard size={20} /> Dashboard
+          <LayoutDashboard size={18} /> Dashboard
         </div>
-        
+
         {auth?.role === 'candidate' && (
           <div className="nav-item" onClick={() => navigate('/')}>
-            <Briefcase size={20} /> Trouver des offres
+            <Briefcase size={18} /> Trouver des offres
           </div>
         )}
 
-        <div style={{ flex: 1 }}></div>
+        <div style={{ flex: 1 }} />
 
-        <div className="nav-item" style={{ background: 'transparent', color: 'var(--text-dark)', pointerEvents: 'none' }}>
-           <User size={20} /> {auth?.name || "User"}
+        {/* User info */}
+        <div style={{
+          padding: '.85rem 1rem',
+          borderRadius: 10,
+          background: 'rgba(249,115,22,.07)',
+          border: '1px solid rgba(249,115,22,.12)',
+          marginBottom: '.4rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '.7rem',
+        }}>
+          <div style={{
+            width: 32, height: 32, borderRadius: '50%',
+            background: 'linear-gradient(135deg, var(--orange), var(--gold))',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0, fontSize: '.8rem', fontWeight: 700, color: '#fff',
+          }}>
+            {(auth?.name || 'U').charAt(0).toUpperCase()}
+          </div>
+          <div style={{ overflow: 'hidden' }}>
+            <div style={{ fontSize: '.85rem', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {auth?.name || 'Utilisateur'}
+            </div>
+            <div style={{ fontSize: '.72rem', color: 'var(--text-muted)', textTransform: 'capitalize' }}>
+              {auth?.role}
+            </div>
+          </div>
         </div>
-        
-        <div className="nav-item" onClick={logout} style={{ color: '#ef4444' }}>
-          <LogOut size={20} /> Déconnexion
+
+        <div className="nav-item" onClick={logout} style={{ color: '#f87171', marginBottom: 0 }}>
+          <LogOut size={18} /> Déconnexion
         </div>
       </aside>
-      
+
       <main className="main-content">
         <Routes>
           <Route path="/candidate/*" element={auth?.role === 'candidate' ? <CandidateDashboard /> : <Navigate to="/login" />} />
-          <Route path="/rh/*" element={auth?.role === 'rh' ? <RHDashboard /> : <Navigate to="/login" />} />
-          <Route path="*" element={<Navigate to="/" />} />
+          <Route path="/rh/*"        element={auth?.role === 'rh'        ? <RHDashboard />       : <Navigate to="/login" />} />
+          <Route path="*"            element={<Navigate to="/" />} />
         </Routes>
       </main>
     </div>
@@ -64,15 +91,13 @@ function Layout() {
 }
 
 function App() {
-  const [auth, setAuth] = useState<{token: string, role: string, name: string} | null>(null);
+  const [auth, setAuth] = useState<{ token: string; role: string; name: string } | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    const role = localStorage.getItem('role');
-    const name = localStorage.getItem('name');
-    if (token && role) {
-       setAuth({ token, role, name: name || '' });
-    }
+    const role  = localStorage.getItem('role');
+    const name  = localStorage.getItem('name');
+    if (token && role) setAuth({ token, role, name: name || '' });
   }, []);
 
   const login = (token: string, role: string, name: string) => {
@@ -92,7 +117,7 @@ function App() {
   return (
     <AuthContext.Provider value={{ auth, login, logout }}>
       <BrowserRouter>
-         <Layout />
+        <Layout />
       </BrowserRouter>
     </AuthContext.Provider>
   );
