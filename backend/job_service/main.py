@@ -9,10 +9,10 @@ from sqlalchemy.orm import Session
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "shared")))
 from database import engine, Base, get_db
 from models import JobOffer, User
-from deps import get_current_active_rh
+from deps import get_current_active_rh, get_cors_origins
 
 import schemas
-from extraction import extract_skills_from_description
+from extraction import extract_skills_from_description  # shared/extraction.py via sys.path
 
 # Ensure tables are created
 Base.metadata.create_all(bind=engine)
@@ -21,7 +21,7 @@ app = FastAPI(title="Job Service (RH Dashboard)")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=get_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

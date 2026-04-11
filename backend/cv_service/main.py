@@ -14,15 +14,17 @@ import PyPDF2
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "shared")))
 from database import engine, Base, get_db, SessionLocal
 from models import Application, JobOffer, User, Interview, ApplicationStatus
-from deps import get_current_user, get_current_active_rh, get_current_active_candidate
+from deps import get_current_user, get_current_active_rh, get_current_active_candidate, get_cors_origins
 
 from parser import parse_cv_text
+from matching import match_score
+from extraction import extract_skills_from_description
 
 app = FastAPI(title="Application Service")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=get_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -51,11 +53,14 @@ def analyze_cv(app_id: int, file_path: str, job_text: str, db: Session):
 
     cv_text = extract_pdf_text(file_path)
     parsed_data = parse_cv_text(cv_text)
-    
-    skills_json = json.dumps(parsed_data.get("skills", []))
+
+    candidate_skills = parsed_data.get("skills", [])
+    skills_json = json.dumps(candidate_skills)
     application.parsed_skills = skills_json
-    
-    application.cv_score = 75.0 
+
+    job_skills = extract_skills_from_description(job_text)
+    raw_match = match_score(job_skills, candidate_skills)
+    application.cv_score = round(raw_match * 100, 2)
 
     interview_link = str(uuid.uuid4())
     application.interview_link = interview_link
@@ -134,7 +139,6 @@ def get_rh_applications(job_offer_id: int = None, current_rh: User = Depends(get
     result = []
     
     for a in apps:
-        import json
         ai_comment_text = a.interview.ai_comments if a.interview else None
         ai_comment_obj = {}
         if ai_comment_text and ai_comment_text.startswith("{"):

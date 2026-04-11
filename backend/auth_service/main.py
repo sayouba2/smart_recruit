@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "shared")))
 from database import engine, Base, get_db
 from models import User, RoleEnum
+from deps import SECRET_KEY, ALGORITHM, get_cors_origins
 
 import schemas
 
@@ -21,15 +22,13 @@ app = FastAPI(title="Auth Service")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=get_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-SECRET_KEY = "smart_recruit_super_secret_key"
-ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 120
 
 def verify_password(plain_password, hashed_password):

@@ -10,7 +10,7 @@ from sqlalchemy.orm import joinedload
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "shared")))
 from database import engine, Base, SessionLocal
 from models import Application, JobOffer, Interview, User, ApplicationStatus
-from deps import SECRET_KEY, ALGORITHM
+from deps import SECRET_KEY, ALGORITHM, get_cors_origins
 
 from audio_handler import process_audio_message
 
@@ -21,7 +21,7 @@ app = FastAPI(title="Interview Service")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=get_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

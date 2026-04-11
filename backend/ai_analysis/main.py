@@ -11,14 +11,16 @@ from pydantic import BaseModel
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "shared")))
 from database import engine, Base, get_db
 from models import Application, JobOffer, Interview, User, ApplicationStatus
-from deps import get_current_active_candidate
+from deps import get_current_active_candidate, get_cors_origins
 
+import json
+import scoring
 import schemas
 
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="AI Analysis Service")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(CORSMiddleware, allow_origins=get_cors_origins(), allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY", "dummy_key"))
 AUDIO_STORAGE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "shared_audios"))
@@ -87,13 +89,13 @@ def analyze_session(req: schemas.AnalysisRequest, current_candidate: User = Depe
         full_transcript += f"IA: {q_text}\nCandidat: {candidate_ans}\n\n"
         
     # Get AI metrics
-    import scoring
     evaluation = scoring.evaluate_interview(full_transcript, app_record.job_offer.description if app_record.job_offer else "", app_record.parsed_skills or "")
     interview_score = evaluation.get("score_global", 0)
     
     cv_match = app_record.cv_score if app_record.cv_score else 50.0
-    # In absence of full experience parsed model, we rely mainly on cv_match and interview_score
-    final_score = scoring.compute_final_score(cv_match, interview_score, 70.0) 
+    # experience_score from qualite_reponse: "Analyse de l'expérience, gestion du stress et mises en situation"
+    experience_score = evaluation.get("qualite_reponse", {}).get("note", 70.0)
+    final_score = scoring.compute_final_score(cv_match, interview_score, experience_score)
     # Priority Check
     priority_crit = app_record.job_offer.priority_criteria if app_record.job_offer else ""
     priority_result = {"passed": True, "comment": ""}
@@ -109,7 +111,6 @@ def analyze_session(req: schemas.AnalysisRequest, current_candidate: User = Depe
     else:
         ai_comment = evaluation.get("synthese", "Évaluation générée.") + "\n\n(Critère prioritaire: " + priority_result.get("comment", "OK") + ")"
 
-    import json
     saved_comments = json.dumps({
         "comment": ai_comment,
         "transcript": full_transcript,

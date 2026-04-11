@@ -10,8 +10,12 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-SECRET_KEY = "smart_recruit_super_secret_key"
+SECRET_KEY = os.getenv("SECRET_KEY", "changeme_in_production")
 ALGORITHM = "HS256"
+
+def get_cors_origins() -> list[str]:
+    raw = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173")
+    return [o.strip() for o in raw.split(",")]
 
 # This expects the token in the Authorization header: Bearer <token>
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="http://localhost:8005/login")
